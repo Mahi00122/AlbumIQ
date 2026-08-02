@@ -1,41 +1,39 @@
 from celery import shared_task
-
-from apps.face_engine.models import FaceEmbedding
-from apps.face_engine.services import FaceEngineUnavailable, extract_embeddings
-
+from deepface import DeepFace
 from .models import Photo
+import os
 
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+# We kept the excellent retry logic from the starter template!
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
 def process_photo_embeddings(self, photo_id: str):
-    photo = Photo.objects.get(id=photo_id)
-    photo.processing_status = Photo.ProcessingStatus.PROCESSING
-    photo.save(update_fields=["processing_status"])
-
     try:
-        detections = extract_embeddings(photo.image.path)
+        # 1. Get the photo from the database
+        photo = Photo.objects.get(id=photo_id)
+        print(f"Starting AI processing for Photo ID: {photo.id}")
 
-        FaceEmbedding.objects.filter(photo=photo).delete()
-        FaceEmbedding.objects.bulk_create(
-            [
-                FaceEmbedding(
-                    photo=photo,
-                    face_index=index,
-                    embedding_vector=detected.embedding_vector,
-                    face_location=detected.face_location,
-                )
-                for index, detected in enumerate(detections)
-            ]
+        # 2. Get the file path
+        img_path = photo.image.path
+
+        # 3. Extract 512-dimensional embeddings using our new ArcFace model!
+        detections = DeepFace.represent(
+            img_path=img_path, model_name="ArcFace", enforce_detection=False
         )
 
-        photo.processing_status = Photo.ProcessingStatus.COMPLETED
-        photo.save(update_fields=["processing_status"])
+        print(f"SUCCESS: Extracted {len(detections)} face(s) from Photo {photo_id}")
+
+        # We will connect FAISS and FaceEmbedding in the next phase!
+
         return {"photo_id": photo_id, "faces_found": len(detections)}
-    except FaceEngineUnavailable:
-        photo.processing_status = Photo.ProcessingStatus.FAILED
-        photo.save(update_fields=["processing_status"])
-        return {"photo_id": photo_id, "faces_found": 0, "status": "failed"}
-    except Exception:
-        photo.processing_status = Photo.ProcessingStatus.FAILED
-        photo.save(update_fields=["processing_status"])
+
+    except Photo.DoesNotExist:
+        print(f"Error: Photo {photo_id} not found.")
+        return {"photo_id": photo_id, "faces_found": 0, "status": "failed - not found"}
+    except Exception as e:
+        print(f"AI Processing Error: {str(e)}")
         raise

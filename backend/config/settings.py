@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+from pydoc import cli
 
 from dotenv import load_dotenv
 
@@ -67,24 +68,12 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 postgres_db = os.getenv("POSTGRES_DB")
-if postgres_db:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": postgres_db,
-            "USER": os.getenv("POSTGRES_USER", "postgres"),
-            "PASSWORD": os.getenv("POSTGRES_PASSWORD", "postgres"),
-            "HOST": os.getenv("POSTGRES_HOST", "localhost"),
-            "PORT": os.getenv("POSTGRES_PORT", "5432"),
-        }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -163,3 +152,20 @@ AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = None
 DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+# --- FORCE SQLITE OVERRIDE ---
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+}
+
+# --- CELERY & REDIS SETTINGS ---
+# The full, correct URL with the SSL certificate fix (CERT_NONE) included!
+UPSTASH_URL = "rediss://default:gQAAAAAAAoJUAAIgcDJkYTBkMDIyY2MyOWI0MTI2OWQxNDRhNjA1OWUxM2E2Yw@composed-seagull-164436.upstash.io:6379?ssl_cert_reqs=CERT_NONE"
+
+CELERY_BROKER_URL = UPSTASH_URL
+CELERY_RESULT_BACKEND = UPSTASH_URL
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
