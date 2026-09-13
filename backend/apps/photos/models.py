@@ -11,7 +11,7 @@ class Photo(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Photo {self.id} for {self.event.name}"
+        return f"Photo {self.id} for {self.event.event_name}"
 
 
 # This "listens" for anytime a new Photo is saved
